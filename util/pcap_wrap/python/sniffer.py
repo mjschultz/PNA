@@ -14,7 +14,6 @@ import pcap_wrap
 import string
 import os
 import smtplib
-import exploitlist
 import re
 
 
