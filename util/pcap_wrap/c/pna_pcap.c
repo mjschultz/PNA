@@ -21,6 +21,8 @@
 
 #include "pna.h"
 
+
+
 /* monitor prototypes */
 void monitor_init(void);
 void monitor_hook(struct session_key *, int, struct packet *, unsigned long *);

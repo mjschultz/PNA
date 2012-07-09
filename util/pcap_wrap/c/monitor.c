@@ -7,8 +7,9 @@
  */
 
 #include <stdio.h>
-#include "pna.h"
 #include "pna_hashmap.h"
+#include "pna.h"
+
 
 /* constants */
 #define HASHMAP_SIZE (1 << 10) /* = 2^10 = 1024 entries */
@@ -78,37 +79,6 @@ void monitor_hook(struct session_key *key, int direction,
 
     /* print the number of bytes in this packet */
     printf("length: %lu\n", pkt->length);
-
-    /* dump the packet contents */
-    for (i = 0; i < pkt->length; i++) {
-        printf("%02x ", pkt->data[i]);
-    }
-
-    /* now the action -- try to get the key pair */
-    entry = (struct hash_pair *)hashmap_get(map, key);
-    if (!entry) {
-        /* no entry, try to put */
-        entry = (struct hash_pair *)hashmap_put(map, key, &value);
-        if (!entry) {
-            printf("no more buckets!\n");
-            return;
-        }
-    }
-
-    /* we have an entry, update it */
-    if (PNA_DIR_INBOUND == direction) {
-        entry->value.bytes_in += pkt->length;
-    }
-    else {
-        entry->value.bytes_out += pkt->length;
-    }
-    printf("entry@%p: %d/%d\n", entry, entry->value.bytes_in, entry->value.bytes_out); 
-
-    /* some fun accounting */
-    if (entry->value.bytes_in > max_in)
-        max_in = entry->value.bytes_in;
-    if (entry->value.bytes_out > max_out)
-        max_out = entry->value.bytes_out;
-
+	packet_reader(pkt->payload);
 }
 
