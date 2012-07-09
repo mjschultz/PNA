@@ -17,10 +17,11 @@ void packet_reader(void *payload);
 /* List of Regualr Expressions */
 char *reg_expr[34] = {"^null$", "/\.\./\.\./\.\./", "\.\./\.\./config\.sys", "/\.\./\.\./\.\./autoexec\.bat", "/\.\./\.\./windows/user\.dat", "\\\x02\\\xb1", "\\\x04\\\x01", "\\\x05\\\x01", "\\\x90\\\x02\\\xb1\\\x02\\\xb1", "\\\x90\\\x90\\\x90\\\x90", "\\\xff\\\xff\\\xff\\\xff", "\\\xe1\\\xcd\\\x80", "\\\xff\xe0\\\xe8\\\xf8\\\xff\\\xff\\\xff-m", "\\\xc7f\\\x0c", "\\\x84o\\\x01", "\\\x81", "\\\xff\\\xe0\\\xe8", "\/c\+dir", "\/c\+dir\+c", "\.htpasswd", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "author\.exe", "boot\.ini", "cmd\.exe", "c%20dir%20c", "default\.ida", "fp30reg\.dll", "httpodbc\.dll", "nsiislog\.dll", "passwd$", "root\.exe", "shtml\.exe", "win\.ini", "xxxxxxxxxxxxxxxxxxxxxx"};
 
-/*The alert system will print(and hopefully send email
-if one or more of the regular expressions apprear */
+/*The alert system will print if one or more of the regular expressions apprear */
 int alert_system(char *payload)
 {
+
+	/* set needed variables */
     int i, match;
     char errbuf[1024];
 	int REG_COUNT = 34;
@@ -42,6 +43,7 @@ int alert_system(char *payload)
 		printf("%s\n", reg_expr[i]);
         match = regexec(&regexes[i], payload, 0, NULL, 0);
         if (REG_NOMATCH != match) {
+
             // match found, return match index
 			printf("%s\n", reg_expr[i]);
 			printf("Regular Expression found, contacting Network Admin\n");
@@ -79,7 +81,7 @@ void packet_reader(void *payload)
 	alert_system((char *)payload);
 	}
 	else {
-	printf("HTTP is not found\n");
+	printf("GET is not found\n");
 	}
 }
 /* FIN */

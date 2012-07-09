@@ -79,6 +79,6 @@ void monitor_hook(struct session_key *key, int direction,
 
     /* print the number of bytes in this packet */
     printf("length: %lu\n", pkt->length);
-	packet_reader(pkt->payload);
+	packet_reader(pkt->payload); //runs packet reader each time monitor hook is run
 }
 

@@ -17,7 +17,7 @@ import smtplib
 import re
 
 
-##The Regular Expression list
+##Regular Expression list to look for in GET statements
 regexpr_list = ["^null$", "/\.\./\.\./\.\./", "\.\./\.\./config\.sys", "/\.\./\.\./\.\./autoexec\.bat", "/\.\./\.\./windows/user\.dat", "\\\x02\\\xb1", "\\\x04\\\x01", "\\\x05\\\x01", "\\\x90\\\x02\\\xb1\\\x02\\\xb1", "\\\x90\\\x90\\\x90\\\x90", "\\\xff\\\xff\\\xff\\\xff", "\\\xe1\\\xcd\\\x80", "\\\xff\xe0\\\xe8\\\xf8\\\xff\\\xff\\\xff-m", "\\\xc7f\\\x0c", "\\\x84o\\\x01", "\\\x81", "\\\xff\\\xe0\\\xe8", "\/c\+dir", "\/c\+dir\+c", "\.htpasswd", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "author\.exe", "boot\.ini", "cmd\.exe", "c%20dir%20c", "default\.ida", "fp30reg\.dll", "httpodbc\.dll", "nsiislog\.dll", "passwd$", "root\.exe", "shtml\.exe", "win\.ini", "xxxxxxxxxxxxxxxxxxxxxx"]
 
 ##For each packet captured, run this sequence
@@ -27,13 +27,6 @@ def packet_reader(payload):
 	global list_Of_Request_Headers  ## Will be needed if we need to look for all of them
 
 	if 'GET' in payload and 'HTTP/1.' in payload:
-	
-##		This if statement is an ideal scenario, making the assumption that the potential hacker
-##		Did not alter the string to throw off the indexing.
-		#needed_http_string = payload[3][ payload[3].index('GET'): payload[3].index('HTTP/1.1') + \
-		#									len('HTTP/1.1') + 1]
-
-
 ##		Semi-Ideal situation. Only checks between 'GET' and the last 'HTTP/1.1'
 ##		Index string using index('HTTP', num) to see if duplicates were entered
 ##		to throw off url search
@@ -49,6 +42,8 @@ def packet_reader(payload):
 ##		while loop that will run until HTTP/1.1 is no longer in the string. Again,
 ##		I am assuming that the hacker can only tamper with anything between GET and
 ##		HTTP/1.1
+
+		### Probably isn't the best way, but it works
 		while dummyVar != curr_num_index:
 			try:
 				curr_num_index = payload.index('HTTP/1.', prev_num_index + 1)
@@ -72,14 +67,19 @@ def send_email(To = 'cortez8652@att.net', From = 'intunesaccount@att.net', Crime
 	return None
 
 
-def alert_system(url_str):
+##Created an alert system 
+def alert_system(get_str):
 	global regexpr_list
+
+	##check each word in the regular expression list and compile it, then use re.search to
+	##check the GET string.
 	for word in regexpr_list:
 		print word
-		#if word in url_str:
 		compile_word = re.compile(word)
-		if re.search(compile_word, url_str) != None:
-			print word, "found in URL, attempting to contact network admin"
+		if re.search(compile_word, get_str) != None:
+			print word, "found in GET, attempting to contact network admin"
+
+			##Something fancy I tried to do, sending email to network admin if somthing found
 			try:
 				send_email()
 				print "Network Breach, administrator has been contacted"
