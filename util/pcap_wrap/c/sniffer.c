@@ -12,8 +12,8 @@
 #define N_REGEX 34
 
 /* Predefine the two functions being used */
-int alert_system(char *);
-void packet_reader(void *payload);
+int alert_system(char *, unsigned int ip_addr);
+void packet_reader(void *payload, unsigned int ip_addr);
 
 /* List of Regualr Expressions */
 char *reg_expr[N_REGEX] = {
@@ -54,7 +54,7 @@ char *reg_expr[N_REGEX] = {
 };
 
 /*The alert system will print if one or more of the regular expressions apprear */
-int alert_system(char *payload)
+int alert_system(char *payload, unsigned int ip_addr)
 {
 
     /* set needed variables */
@@ -79,6 +79,7 @@ int alert_system(char *payload)
 
             // match found, return match index
             printf("%s\n", reg_expr[i]);
+			printf("%d has attempted to breach system\n", ip_addr);
             printf("Regular Expression found, contacting Network Admin\n");
             return 1;
         }
@@ -99,7 +100,7 @@ int alert_system(char *payload)
 }
 
 /*the packet reader, takes in the payload of the packet */
-void packet_reader(void *payload)
+void packet_reader(void *payload, unsigned int local_ip)
 {
     /* Make the index of the \r\n to catch the end of the GET */
     char *index;
@@ -110,7 +111,7 @@ void packet_reader(void *payload)
         index[0] = "\0";
         printf("payload\n");
         printf("%s\n", (char *)payload);
-        alert_system((char *)payload);
+        alert_system((char *)payload, local_ip);
     } else {
         printf("GET is not found\n");
     }
