@@ -20,7 +20,7 @@ PNA_DIR_OUTBOUND = 0
 PNA_DIR_INBOUND = 1
 
 def monitor_hook(key, direction, pkt, data) :
-	print 'Packet Starts Here'
+	print '\n-----'
 	print key
 	print 'length:', len(pkt)
 
@@ -30,6 +30,10 @@ def monitor_hook(key, direction, pkt, data) :
 		sniffer.packet_reader(pkt_str, key['local_ip'])
 		print pkt_str
 		print key['local_ip'], 'is connecting to Port', key['remote_port']
+		print '-----'
+	else:
+		print '-----'
+
 
 def explode_pkt(pkt) :
     # Assume we start with an Ethernet header

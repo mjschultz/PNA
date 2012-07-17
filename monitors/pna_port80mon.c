@@ -46,10 +46,7 @@ void port80mon_release(void)
 
 int port80mon_hook(struct session_key *key, int direction, struct sk_buff *skb, unsigned long *data)
 {	
-
-	/* Timestamp will be the same */
 	
-    //	skb_get_timestamp(skb, &tv);
 	
 	/* if the port is 80, print the IP address that connects */
 	if(key->remote_port == 80 && direction == pna_dir_inbound) {
