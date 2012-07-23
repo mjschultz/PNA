@@ -27,7 +27,7 @@ def monitor_hook(key, direction, pkt, data) :
 	##Added if statement that runs the sniffer if it fits the given parameters.
 	if key['remote_port'] == 80 and direction == PNA_DIR_OUTBOUND and len(explode_pkt(pkt)) >= 4:
 		pkt_str = explode_pkt(pkt)[3]
-		sniffer.packet_reader(pkt_str, key['local_ip'])
+		sniffer.getsearch(pkt_str, key['local_ip'])
 		print key['local_ip'], 'is connecting to Port', key['remote_port']
 		print '-----'
 	else:

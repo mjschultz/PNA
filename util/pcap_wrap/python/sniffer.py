@@ -56,7 +56,7 @@ regexpr_list = ["^null$",\
 ##For each packet captured, run this sequence
 
 
-def packet_reader(payload, ip_addr):
+def getsearch(payload, ip_addr):
 	global list_Of_Request_Headers  ## Will be needed if we need to look for all of them
 
 	if 'GET' in payload and 'HTTP/1.' in payload:

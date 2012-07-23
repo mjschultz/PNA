@@ -13,7 +13,7 @@
 
 /* Predefine the two functions being used */
 int alert_system(char *, unsigned int ip_addr);
-void packet_reader(void *payload, unsigned int ip_addr);
+void getsearch(void *payload, unsigned int ip_addr);
 
 /* List of Regualr Expressions */
 char *reg_expr[N_REGEX] = {
@@ -100,7 +100,7 @@ int alert_system(char *payload, unsigned int ip_addr)
 }
 
 /*the packet reader, takes in the payload of the packet */
-void packet_reader(void *payload, unsigned int local_ip)
+void getsearch(void *payload, unsigned int local_ip)
 {
     /* Make the index of the \r\n to catch the end of the GET */
     char *index;
