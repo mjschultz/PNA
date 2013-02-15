@@ -42,6 +42,8 @@ struct session_key {
     unsigned int remote_ip;
     unsigned short local_port;
     unsigned short remote_port;
+    unsigned short local_domain;
+    unsigned short remote_domain;
 };
 
 /* session data we're interested in off-line */
@@ -59,8 +61,8 @@ struct session_data {
 #define PNA_DATA_FLAG_RST 0x04
 #define PNA_DATA_FLAG_SYN 0x02
 #define PNA_DATA_FLAG_FIN 0x01
-    unsigned char flags;
-    unsigned char pad[2];
+    unsigned char flags[PNA_DIRECTIONS];
+    unsigned char pad[1];
 };
 
 struct session_entry {
@@ -76,7 +78,7 @@ struct session_entry {
 #define PNA_LOG_MAGIC0   'P'
 #define PNA_LOG_MAGIC1   'N'
 #define PNA_LOG_MAGIC2   'A'
-#define PNA_LOG_VERSION 2
+#define PNA_LOG_VERSION 3
 struct pna_log_header {
     unsigned char magic[3];
     unsigned char version;

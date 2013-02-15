@@ -17,7 +17,7 @@ user-progs := example_mon pcap_dump
 user-deps := pna.o
 
 # standard user-space programs
-progs := user_message
+progs := user_message domain_tool
 prog-deps := pna_message.o session_dump.o proc_dump.o
 
 CFLAGS += -I../include/

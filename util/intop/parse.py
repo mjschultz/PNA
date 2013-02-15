@@ -16,7 +16,7 @@
 
 import sys, struct
 
-__version__ = 'parse_0.1.0-py'
+__version__ = 'parse_0.3.0-py'
 
 # This class simple parses a log file and returns a list of the raw data
 # contained within that file.  It is up to the caller to convert that raw data
@@ -43,6 +43,19 @@ class PNALogParser :
                     'packets-out', 'packets-in',
                     'end-time', 'begin-time',
                     'first-direction', 'flags',)
+
+    v3hdr_fmt    = 'cccBIII'
+    v3hdr_names  = ('magic0', 'magic1', 'magic2', 'version',
+                    'start-time', 'end-time','size',)
+    v3data_fmt   = 'HBxIIHHHHIIIIIIBBBx'
+    v3data_names = ('l3-protocol', 'l4-protocol',
+                    'local-ip', 'remote-ip',
+                    'local-port', 'remote-port',
+                    'local-domain', 'remote-domain',
+                    'bytes-out', 'bytes-in',
+                    'packets-out', 'packets-in',
+                    'end-time', 'begin-time',
+                    'first-direction', 'local-flags', 'remote-flags',)
 
     def __init__(self) :
         self.clear_log()

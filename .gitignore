@@ -10,8 +10,11 @@ irq_count.*
 *.o.cmd
 *.mod.c
 service/config
+service/domains
 .tmp_versions/
 Module.symvers
 modules.order
 user/user_message
 user/session
+logs/*
+*.pyc

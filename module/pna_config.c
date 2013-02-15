@@ -19,9 +19,7 @@
 #include "pna_module.h"
 
 /* configuration parameters */
-char *pna_iface = "eth0";
-uint pna_prefix = 0xc0a80000;      /* 192.168.0.0    */
-uint pna_mask = 0xffff0000;        /*            /16 */
+char *pna_iface = "none";
 uint pna_session_entries = (1 << 21); /* 2,097,152      */
 uint pna_tables = 2;
 bool pna_debug = false;
