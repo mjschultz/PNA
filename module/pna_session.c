@@ -272,7 +272,7 @@ int session_hook(struct session_key *key, int direction,
         session->data.bytes[direction] += skb->len + ETH_OVERHEAD;
         session->data.packets[direction] += 1;
         session->data.timestamp = timeval.tv_sec;
-        session->data.flags |= flags;
+        session->data.flags[direction] |= flags;
         return 0;
     }
 
@@ -283,7 +283,7 @@ int session_hook(struct session_key *key, int direction,
     data.timestamp = timeval.tv_sec;
     data.first_tstamp = timeval.tv_sec;
     data.first_dir = direction;
-    data.flags = flags;
+    data.flags[direction] = flags;
     session = (struct session_entry *)hashmap_put(info->map, key, &data);
     if (session) {
         /* successful put */

@@ -132,12 +132,6 @@ static inline void pna_key_swap(struct session_key *key)
 /* make sure the local and remote values are correct in the key */
 static int pna_localize(struct session_key *key, int *direction)
 {
-    /*
-     * XXX: improve this!
-     *   * priority: lower domain wins, lower port wins, lower ip wins
-     */
-    unsigned int temp;
-
     /* trie stores stuff in network byte order */
     key->local_domain = pna_dtrie_lookup((key->local_ip));
     key->remote_domain = pna_dtrie_lookup((key->remote_ip));

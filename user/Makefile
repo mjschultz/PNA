@@ -17,8 +17,11 @@ user-progs := example_mon pcap_dump
 user-deps := pna.o
 
 # standard user-space programs
-progs := user_message domain_tool
+progs := user_message
 prog-deps := pna_message.o session_dump.o proc_dump.o
+
+config := domain_tool
+config-deps :=
 
 CFLAGS += -I../include/
 LDLIBS := -lpthread -lpcap
@@ -30,7 +33,10 @@ debug: $(progs)
 
 $(progs): $(prog-deps)
 
+$(config): $(config-deps)
+
 $(user-progs): $(user-deps)
 
 clean:
-	rm -f $(progs) $(prog-deps) $(special-progs) $(special-deps) $(user-progs) $(user-deps)
+	rm -f $(progs) $(prog-deps) $(config) $(config-deps)
+	rm -f $(special-progs) $(special-deps) $(user-progs) $(user-deps)

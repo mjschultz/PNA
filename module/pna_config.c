@@ -27,8 +27,6 @@ bool pna_perfmon = true;
 bool pna_session_mon = true;
 
 PNA_PARAM(charp, pna_iface, "Interface on which we listen to packets");
-PNA_PARAM(uint, pna_prefix, "Network prefix defining 'local' IP addresses");
-PNA_PARAM(uint, pna_mask, "Network mask for IP addresses");
 PNA_PARAM(uint, pna_session_entries, "Number of session entries per dump period");
 PNA_PARAM(uint, pna_tables, "Number of <src,dst,port> tables to use");
 PNA_PARAM(bool, pna_debug, "Enable kernel debug log messages");
