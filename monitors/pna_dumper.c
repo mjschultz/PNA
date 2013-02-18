@@ -27,6 +27,7 @@
  * will delete a packet filter.
  */
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/ctype.h>
 #include <linux/skbuff.h>
@@ -55,6 +56,13 @@ struct pna_rtmon dumper = {
 MODULE_LICENSE("Apache 2.0");
 MODULE_AUTHOR("Michael J. Schultz <mjschultz@gmail.com>");
 PNA_MONITOR(&dumper);
+
+/* flen param was removed starting @ kernel 2.6.38 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
+    #define PNA_RUN_FILTER(skb, filter, flen) sk_run_filter((skb), (filter), (flen))
+#else
+    #define PNA_RUN_FILTER(skb, filter, flen) sk_run_filter((skb), (filter))
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38) */
 
 /**
  * Per expression dumper structure
@@ -152,7 +160,7 @@ static int dumper_hook(struct session_key *key, int direction,
 
     /* loop over all dumpers and find packet matches */
     list_for_each_entry(d, &dumper_list.list, list) {
-        match = sk_run_filter(skb, d->filter, d->filter_len);
+        match = PNA_RUN_FILTER(skb, d->filter, d->filter_len);
         /* look for filter match */
         if (match > 0) {
             /* copy and pass this packet */
