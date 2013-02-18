@@ -30,9 +30,6 @@
 #define PNA_DIRECTIONS 2 /* out and in */
 # define PNA_DIR_OUTBOUND 0
 # define PNA_DIR_INBOUND  1
-#define PNA_PROTOCOLS 2 /* tcp and udp */
-# define PNA_PROTO_TCP 0
-# define PNA_PROTO_UDP 1
 
 /* definition of a session for PNA */
 struct session_key {

@@ -41,6 +41,10 @@ MODULE_LICENSE("Apache 2.0");
 MODULE_AUTHOR("Michael J. Schultz <mjschultz@gmail.com>");
 PNA_MONITOR(&conmon);
 
+#define PNA_PROTOCOLS 2 /* tcp and udp */
+# define PNA_PROTO_TCP 0
+# define PNA_PROTO_UDP 1
+
 /* monitor settings */
 uint pna_tcp_ports = 0xffffffff;
 uint pna_tcp_bytes = 0xffffffff;

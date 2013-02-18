@@ -42,6 +42,10 @@ struct pna_rtmon lipmon = {
 };
 PNA_MONITOR(&lipmon);
 
+#define PNA_PROTOCOLS 2 /* tcp and udp */
+# define PNA_PROTO_TCP 0
+# define PNA_PROTO_UDP 1
+
 uint pna_connections = 0xffffffff;
 uint pna_sessions = 0xffffffff;
 
