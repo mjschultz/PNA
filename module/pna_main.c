@@ -34,6 +34,10 @@
 
 #include <net/ip.h>
 #include <net/tcp.h>
+#include <linux/udp.h>
+#include <linux/tcp.h>
+#include <linux/icmp.h>
+#include <linux/sctp.h>
 
 #include "pna.h"
 #include "pna_module.h"
@@ -196,6 +200,8 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
     struct iphdr *iphdr;
     struct tcphdr *tcphdr;
     struct udphdr *udphdr;
+    struct sctphdr *sctphdr;
+    struct icmphdr *icmphdr;
     int direction;
     int flags = 0;
     int ret = 0;
@@ -239,21 +245,33 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
             key.remote_port = ntohs(tcphdr->dest);
             /* only pass ECE through if not SYN packet (ignore otherwise) */
             if (!tcphdr->syn && tcphdr->ece)
-                flags |= PNA_DATA_FLAG_ECE;
+                flags |= TCP_FLAG_ECE;
             /* pass through other TCP flags as they happen */
-            if (tcphdr->cwr) flags |= PNA_DATA_FLAG_CWR;
-            if (tcphdr->urg) flags |= PNA_DATA_FLAG_URG;
-            if (tcphdr->ack) flags |= PNA_DATA_FLAG_ACK;
-            if (tcphdr->psh) flags |= PNA_DATA_FLAG_PSH;
-            if (tcphdr->rst) flags |= PNA_DATA_FLAG_RST;
-            if (tcphdr->syn) flags |= PNA_DATA_FLAG_SYN;
-            if (tcphdr->fin) flags |= PNA_DATA_FLAG_FIN;
+            if (tcphdr->cwr) flags |= TCP_FLAG_CWR;
+            if (tcphdr->urg) flags |= TCP_FLAG_URG;
+            if (tcphdr->ack) flags |= TCP_FLAG_ACK;
+            if (tcphdr->psh) flags |= TCP_FLAG_PSH;
+            if (tcphdr->rst) flags |= TCP_FLAG_RST;
+            if (tcphdr->syn) flags |= TCP_FLAG_SYN;
+            if (tcphdr->fin) flags |= TCP_FLAG_FIN;
             break;
         case IPPROTO_UDP:
             udphdr = udp_hdr(skb);
             key.local_port = ntohs(udphdr->source);
             key.remote_port = ntohs(udphdr->dest);
             break;
+        case IPPROTO_SCTP:
+            sctphdr = sctp_hdr(skb);
+            key.local_port = ntohs(sctphdr->source);
+            key.remote_port = ntohs(sctphdr->dest);
+        case IPPROTO_ICMP:
+            icmphdr = icmp_hdr(skb);
+            /* ICMP doesn't have ports, set to 0s */
+            /* Abuse the `flags` field to encode the type,
+             * the code itself will be ignored */
+            key.local_port = 0;
+            key.remote_port = 0;
+            flags = icmphdr->type;
         default:
             return pna_done(skb);
         }
