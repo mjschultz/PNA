@@ -9,12 +9,12 @@ irq_count.*
 *.ko.unsigned.cmd
 *.o.cmd
 *.mod.c
-service/config
-service/domains
+config/*
 .tmp_versions/
 Module.symvers
 modules.order
 user/user_message
+user/load_nets
 user/session
 logs/*
 *.pyc

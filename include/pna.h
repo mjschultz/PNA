@@ -39,8 +39,8 @@ struct session_key {
     unsigned int remote_ip;
     unsigned short local_port;
     unsigned short remote_port;
-    unsigned short local_domain;
-    unsigned short remote_domain;
+    unsigned short local_net;
+    unsigned short remote_net;
 };
 
 /* session data we're interested in off-line */

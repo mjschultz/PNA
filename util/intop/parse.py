@@ -51,7 +51,7 @@ class PNALogParser :
     v3data_names = ('l3-protocol', 'l4-protocol',
                     'local-ip', 'remote-ip',
                     'local-port', 'remote-port',
-                    'local-domain', 'remote-domain',
+                    'local-net', 'remote-net',
                     'bytes-out', 'bytes-in',
                     'packets-out', 'packets-in',
                     'end-time', 'begin-time',

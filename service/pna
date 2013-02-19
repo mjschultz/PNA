@@ -27,21 +27,13 @@ fi
 # PNA programs
 PNA_MODULE="$PNA_BASE/module/pna.ko"
 USER_MESSAGE="$PNA_BASE/user/user_message"
-DOMAIN_TOOL="$PNA_BASE/user/domain_tool"
+LOAD_NETS="$PNA_BASE/user/load_nets"
 
 # System programs
 IFCONFIG="/sbin/ifconfig"
 INSMOD="/sbin/insmod"
 RMMOD="/sbin/rmmod -w"
 LSMOD="/sbin/lsmod"
-
-##
-# Helper routine to convert a dotted quad IP into a hex word
-##
-ip2hex () {
-    IP=$1
-    printf "0x%02x%02x%02x%02x\n" $(echo "$IP" | sed "s/\./ /g")
-}
 
 ##
 # Helper routine to set affinities on interface(s)
@@ -82,6 +74,14 @@ error () {
     exit $1
 }
 
+ckfile () {
+    if [ ! -f $1 ] ; then
+        ret=$?
+        echo "missing $1"
+        error $ret
+    fi
+}
+
 ##
 # Prepare and load the PNA module
 ##
@@ -90,25 +90,26 @@ start () {
 
     echo "Starting $SERVICE ..."
 
-    [ -f $PNA_MODULE ] || error 1
-    [ -f $USER_MESSAGE ] || error 1
+    ckfile $PNA_MODULE
+    ckfile $USER_MESSAGE
+    ckfile $LOAD_NETS
 
     # Bring up and set affinity on PNA interfaces
     for iface in ${PNA_IFACE/,/ } ; do
         # Check the device state first
-        state=$(cat /sys/class/net/$iface/operstate > /dev/null 2>&1)
+        state=$(cat /sys/class/net/$iface/operstate 2> /dev/null)
         if [ $? -eq 1 ] ; then
             echo "There does not appear to be a $iface device"
             echo "Aborting"
-            exit 1
+            exit 4
         fi
         if [[ "$state" != "down" ]] ; then
-            echo "$iface is NOT in the 'down' state."
+            echo "$iface is NOT in the 'down' state ($state)."
             echo "Are you sure you want to intercept $iface traffic?"
             read -p "yes/[no]? " yn
             if [[ "$yn" != "yes" ]] ; then
                 echo "Aborting (must type 'yes' to continue)"
-                exit 1
+                exit 5
             fi
         fi
         $IFCONFIG $iface up promisc
@@ -118,20 +119,12 @@ start () {
     # Disable conflicting services
     conflicts "stop"
 
-    # Set up parameters for kernel modules
-    PNA_PREFIX=$(ip2hex "$PNA_PREFIX")
-    PNA_MASK=$(ip2hex "$PNA_MASK")
-    PNA_ARGS="pna_iface=\"$PNA_IFACE\""
-    PNA_ARGS="$PNA_ARGS pna_prefix=$PNA_PREFIX"
-    PNA_ARGS="$PNA_ARGS pna_mask=$PNA_MASK"
-    PNA_ARGS="$PNA_ARGS $PNA_OPTIONS"
-    PNA_ARGS="$PNA_ARGS $PARAMS"
     # Load the kernel module
-    $INSMOD $PNA_MODULE $PNA_ARGS
-    [ $? -eq 0 ] && touch /var/run/$SERVICE.kmod || error 2
+    $INSMOD $PNA_MODULE pna_iface="$PNA_IFACE" $PNA_OPTIONS $PARAMS
+    [ $? -eq 0 ] && touch /var/run/$SERVICE.kmod || error 6
 
-    # Load up the domains to monitor
-    $DOMAIN_TOOL -f $DOMAINS
+    # Load up the networks to monitor
+    $LOAD_NETS -f $PNA_NETS
 
     # Set up and start the user-space logging monitor(s)
     mkdir -p "$PNA_LOGDIR"

@@ -42,9 +42,9 @@
 #include "pna.h"
 #include "pna_module.h"
 
-extern unsigned int pna_dtrie_lookup(unsigned int ip);
-extern int pna_dtrie_init(void);
-extern int pna_dtrie_deinit(void);
+extern unsigned int pna_net_lookup(unsigned int ip);
+extern int pna_net_init(void);
+extern int pna_net_deinit(void);
 
 static void pna_perflog(struct sk_buff *skb, int dir);
 static int pna_localize(struct session_key *key, int *direction);
@@ -113,10 +113,10 @@ static inline void pna_key_swap(struct session_key *key)
 {
     unsigned int temp;
 
-    /* domain swap */
-    temp = key->local_domain;
-    key->local_domain = key->remote_domain;
-    key->remote_domain = temp;
+    /* network swap */
+    temp = key->local_net;
+    key->local_net = key->remote_net;
+    key->remote_net = temp;
 
     /* ip swap */
     temp = key->local_ip;
@@ -137,24 +137,24 @@ static inline void pna_key_swap(struct session_key *key)
 static int pna_localize(struct session_key *key, int *direction)
 {
     /* trie stores stuff in network byte order */
-    key->local_domain = pna_dtrie_lookup((key->local_ip));
-    key->remote_domain = pna_dtrie_lookup((key->remote_ip));
+    key->local_net = pna_net_lookup((key->local_ip));
+    key->remote_net = pna_net_lookup((key->remote_ip));
 
-    /* the lowest domain is treated as local */
-    if (key->local_domain < key->remote_domain) {
-        /* local domain is local! */
+    /* the lowest network is treated as local */
+    if (key->local_net < key->remote_net) {
+        /* local network is local! */
         *direction = PNA_DIR_OUTBOUND;
 
         return 1;
     }
-    else if (key->remote_domain < key->local_domain) {
-        /* remote_domain is smaller, swap! */
+    else if (key->remote_net < key->local_net) {
+        /* remote network is smaller, swap! */
         *direction = PNA_DIR_INBOUND;
         pna_key_swap(key);
         return 1;
     }
 
-    /* IPs are in same domain, smaller port is local */
+    /* IPs are in same network, smaller port is local */
     if (key->local_port < key->remote_port) {
         *direction = PNA_DIR_OUTBOUND;
             return 1;
@@ -166,7 +166,7 @@ static int pna_localize(struct session_key *key, int *direction)
         return 1;
     }
 
-    /* IPs are in same domain and port is same, smaller IP is local */
+    /* IPs are in same network and port is same, smaller IP is local */
     if (key->local_ip < key->remote_ip) {
         *direction = PNA_DIR_OUTBOUND;
         return 1;
@@ -420,8 +420,8 @@ int __init pna_init(void)
         return ret;
     }
 
-    /* init the domain mappings (depends on /proc entry) */
-    pna_dtrie_init();
+    /* init the network mappings (depends on /proc entry) */
+    pna_net_init();
 
     if (rtmon_init() < 0) {
         pna_cleanup();
@@ -473,7 +473,7 @@ void pna_cleanup(void)
     }
     rtmon_cleanup();
     pna_message_cleanup();
-    pna_dtrie_deinit();
+    pna_net_deinit();
     session_cleanup();
     pna_info("pna: module is inactive\n");
 }

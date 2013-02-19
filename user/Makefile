@@ -20,13 +20,13 @@ user-deps := pna.o
 progs := user_message
 prog-deps := pna_message.o session_dump.o proc_dump.o
 
-config := domain_tool
+config := load_nets
 config-deps :=
 
 CFLAGS += -I../include/
 LDLIBS := -lpthread -lpcap
 
-all: $(progs)
+all: $(progs) $(config)
 
 debug: CFLAGS += -ggdb
 debug: $(progs)
