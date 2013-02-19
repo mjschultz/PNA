@@ -2,9 +2,8 @@
 
 PNA_BASE="/home/pna/pna"       # Base directory for PNA module
 PNA_IFACE="eth0"               # Interface(s) for PNA to listen on
-PNA_PREFIX="192.168.0.0"       # IP Prefix to watch
-PNA_MASK="255.255.0.0"         # Network Mask to watch
-PNA_LOGDIR="${PNA_BASE}/logs"  # Directory to store log files
+PNA_NETS="$PNA_BASE/nets.pna"  # Network(s) to monitor
+PNA_LOGDIR="$PNA_BASE/logs"    # Directory to store log files
 
 # Advanced PNA configuration
 PNA_SESSIONPROCS=(7)           # Processors for session monitors (not real-time)

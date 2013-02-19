@@ -6,15 +6,15 @@
 # additional real-time monitors needed (on-demand), and associated
 # user-space helper routines.
 #
-# Configuration settings are in "config"
+# Configuration settings are in "config.pna" located in the config
+# directory
 # 
 # No changes need to be made to this file.
 #
 
 SERVICE=pna
 SCRIPT_DIR=$(dirname $(readlink -f $0))
-CONFIG=$SCRIPT_DIR/config
-DOMAINS=$SCRIPT_DIR/domains
+CONFIG=$SCRIPT_DIR/../config/config.pna
 
 # Load the configuration
 if [ -e $CONFIG ] ; then

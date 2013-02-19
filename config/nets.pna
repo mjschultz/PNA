@@ -1,0 +1,12 @@
+# Networks to monitor.
+# Priority breaks a tie between two IPs (lower wins)
+# - If priorities are equal, the tie is broken by lower port
+# - If ports are equal, the tie is broken by lower IP
+# - If IPs are equal and ports are equal the packet is ignored
+#
+# Format:
+#  Network Prefix/Networm Mask bits/priority
+192.168.0.0/26/1
+192.168.128.0/26/1
+192.168.64.0/26/2
+192.168.192.0/26/3
