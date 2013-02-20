@@ -32,7 +32,6 @@
 #define pna_err  pr_err
 
 /* /proc directory PNA tables will be stored in */
-#define PNA_PROCDIR  "pna"
 extern struct proc_dir_entry *proc_parent;
 
 /* name format of PNA table files */
@@ -46,6 +45,9 @@ extern struct proc_dir_entry *proc_parent;
 
 /* time interval to call real-time monitor "clean" function (milliseconds) */
 #define RTMON_CLEAN_INTERVAL (10*MSEC_PER_SEC)
+
+/* not a valid (explicitly monitored) network */
+#define PNA_NET_NONE 0xFFFF
 
 /* Account for Ethernet overheads (stripped by sk_buff) */
 #define ETH_INTERFRAME_GAP 12   /* 9.6ms @ 1Gbps */

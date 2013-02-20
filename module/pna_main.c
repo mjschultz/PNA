@@ -140,11 +140,15 @@ static int pna_localize(struct session_key *key, int *direction)
     key->local_net = pna_net_lookup((key->local_ip));
     key->remote_net = pna_net_lookup((key->remote_ip));
 
+    if (key->local_net == PNA_NET_NONE && key->remote_net == PNA_NET_NONE) {
+        /* local and remote IPs are not IPs we are supposed to monitor */
+        return 0;
+    }
+
     /* the lowest network is treated as local */
     if (key->local_net < key->remote_net) {
         /* local network is local! */
         *direction = PNA_DIR_OUTBOUND;
-
         return 1;
     }
     else if (key->remote_net < key->local_net) {
@@ -280,19 +284,16 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
         return pna_done(skb);
     }
 
-    /* entire key should now be filled in and we have a session, localize it */
-    if (!pna_localize(&key, &direction)) {
-        /* couldn't localize the IP (neither source nor dest in prefix) */
-        return pna_done(skb);
-    }
-
     /* log performance data */
     if (pna_perfmon) {
         pna_perflog(skb, direction);
     }
 
-    /* hook actions here */
-    //pna_info("key: {%d/%d, 0x%08x, 0x%08x, 0x%04x, 0x%04x}\n", key.l3_protocol, key.l4_protocol, key.local_ip, key.remote_ip, key.local_port, key.remote_port);
+    /* entire key should now be filled in and we have a session, localize it */
+    if (!pna_localize(&key, &direction)) {
+        /* couldn't localize the IP (neither source nor dest in prefix) */
+        return pna_done(skb);
+    }
 
     /* insert into session table */
     if (pna_session_mon == true) {

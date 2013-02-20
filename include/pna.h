@@ -25,6 +25,10 @@
 
 #define MAX_STR 512
 
+/* proc file locations */
+#define PNA_PROCDIR  "pna"
+#define PNA_NETFILE  "net"
+
 /* settings/structures for storing <src,dst,port> entries */
 /* various constants */
 #define PNA_DIRECTIONS 2 /* out and in */

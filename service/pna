@@ -124,7 +124,7 @@ start () {
     [ $? -eq 0 ] && touch /var/run/$SERVICE.kmod || error 6
 
     # Load up the networks to monitor
-    $LOAD_NETS -f $PNA_NETS
+    $LOAD_NETS $PNA_NETS
 
     # Set up and start the user-space logging monitor(s)
     mkdir -p "$PNA_LOGDIR"
