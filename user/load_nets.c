@@ -1,82 +1,81 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdint.h>
 
-#define PROC_NODE_STR "/proc/pna/net"
+#include "pna.h"
+
+#define PROC_NODE_STR "/proc/" PNA_PROCDIR "/" PNA_NETFILE
+#define BUFSIZE 128
 
 char *prog_name;
 
 void usage()
 {
-  printf("%s -f <infilename", prog_name);
+    printf("%s <nets_file>", prog_name);
 }
 
 int main (int argc, char** argv)
 {
-  int c;
-  char* infilename;
+    int c;
+    char *nets_file;
+    FILE *in_file, *out_file;
 
-  prog_name = argv[0];
+    uint32_t output[3];
+    char buffer[BUFSIZE];
 
-  while ((c = getopt(argc, argv, "f:")) != -1) {
-    switch(c){
-      case 'f':
-        infilename = optarg;
-        break;
-      default:
+    prog_name = argv[0];
+
+    if (argc != 2) {
         usage();
+        exit(1);
+    }
+
+    nets_file = argv[1];
+    in_file = fopen(nets_file, "r");
+    if (!in_file) {
+        printf("failed to open %s\n", nets_file);
         return -1;
     }
-  }
 
-  FILE* infile = fopen(infilename, "r");
-  if(!infile){
-    printf("failed to open %s\n", infilename);
-    return -1;
-  }
+    while (fgets(buffer, BUFSIZE, in_file)) {
+        if (!isdigit(buffer[0])) {
+            continue;
+        }
 
-  FILE* outfile = fopen(PROC_NODE_STR, "w");
-  if(!outfile){
-    printf("failed to open %s\n", PROC_NODE_STR);
-    return -1;
-  }
+        /* tokenize the string */
+        char *ip = strtok(buffer, "/\n");
+        char *prefix = strtok(NULL, "/\n");
+        char *net = strtok(NULL, "/\n");
 
-  uint32_t output[3];
-  
-  char buffer[100];
-  while(fgets(buffer, 100, infile)){
-    if(buffer[0] == '#')
-      continue;
-    if(buffer[0] == '\n')
-      continue;
-    if(buffer[0] == ' ')
-      continue;
-    char* ipstring = strtok(buffer, "/\n");
-    char* prefix_string = strtok(NULL, "/\n");
-    char* net_string = strtok(NULL, "/\n");
-    if(!ipstring || !prefix_string || !net_string){
-      printf("bad string\n", buffer);
-      return -1;
+        /* make sure we have all parts */
+        if (!(ip && prefix && net)) {
+            printf("bad string\n");
+            printf("----\n%s\n----\n", buffer);
+            return -1;
+        }
+
+        /* prep for insertion into kernel space */
+        output[0] = htonl(inet_addr(ip));
+        output[1] = atoi(prefix);
+        output[2] = atoi(net);
+        if (!(output[1] && output[2])) {
+            printf("bad prefix (%s) or net_id (%s)\n", prefix, net);
+            return -1;
+        }
+
+        /* write to kernel */
+        out_file = fopen(PROC_NODE_STR, "w");
+        if (!out_file) {
+            printf("failed to open %s\n", PROC_NODE_STR);
+            return -1;
+        }
+        fwrite((void *)output, sizeof(uint32_t), 3, out_file); 
+        fclose(out_file);
     }
-    output[1] = atoi(prefix_string);
-    output[2] = atoi(net_string);
-    if(!output[1] || !output[2]){
-      printf("bad string %s or %s\n", prefix_string, net_string);
-      return -1;
-    }
 
-    output[0] = htonl(inet_addr(ipstring));
-    fwrite((void*)output, sizeof(uint32_t), 3, outfile); 
-    fclose(outfile);
-    FILE* outfile = fopen(PROC_NODE_STR, "w");
-    if(!outfile){
-      printf("failed to open %s\n", PROC_NODE_STR);
-      return -1;
-    }
-  }
-  fclose(infile);
-  fclose(outfile); 
+    fclose(in_file);
 }
