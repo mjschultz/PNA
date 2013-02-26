@@ -42,25 +42,21 @@
 #include "pna.h"
 #include "pna_module.h"
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34)
+# error "Module does not support linux kernel < 2.6.34"
+#endif
+
 extern unsigned int pna_net_lookup(unsigned int ip);
 extern int pna_net_init(void);
 extern int pna_net_deinit(void);
 
-static void pna_perflog(struct sk_buff *skb, int dir);
+static void pna_perflog(struct sk_buff *skb, int monitored);
 static int pna_localize(struct session_key *key, int *direction);
 static int pna_done(struct sk_buff *skb);
 int pna_hook(struct sk_buff *skb, struct net_device *dev,
         struct packet_type *pt, struct net_device *orig_dev);
 static int __init pna_init(void);
 static void pna_cleanup(void);
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,32)
-    typedef const struct net_device_stats *pna_link_stats;
-    typedef unsigned long pna_stat_uword;
-#else
-    typedef struct rtnl_link_stats64 pna_link_stats;
-    typedef unsigned long long  pna_stat_uword;
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37) */
 
 /* define a new packet type to hook on */
 #define PNA_MAXIF 4
@@ -72,15 +68,17 @@ static struct packet_type pna_packet_type[PNA_MAXIF] = {
 };
 
 /* for performance measurement */
+#define PNA_UNMONITORED 0
+#define PNA_MONITORED 1
 struct pna_perf {
     __u64 t_jiffies; /* 8 */
     struct timeval currtime; /* 8 */
     struct timeval prevtime; /* 8 */
-    __u64 p_interval[PNA_DIRECTIONS]; /* 16 */
-    __u64 B_interval[PNA_DIRECTIONS]; /* 16 */
-    pna_stat_uword dev_last_rx[PNA_MAXIF];
-    pna_stat_uword dev_last_drop[PNA_MAXIF];
-    pna_stat_uword dev_last_fifo[PNA_MAXIF];
+    __u64 p_interval[2]; /* 16 */
+    __u64 B_interval[2]; /* 16 */
+    __u64 dev_last_rx[PNA_MAXIF];
+    __u64 dev_last_drop[PNA_MAXIF];
+    __u64 dev_last_fifo[PNA_MAXIF];
 };
 
 DEFINE_PER_CPU(struct pna_perf, perf_data);
@@ -206,7 +204,7 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
     struct udphdr *udphdr;
     struct sctphdr *sctphdr;
     struct icmphdr *icmphdr;
-    int direction;
+    int direction = -1;
     int flags = 0;
     int ret = 0;
 
@@ -285,15 +283,15 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
     }
 
     /* log performance data */
-    if (pna_perfmon) {
-        pna_perflog(skb, direction);
-    }
 
     /* entire key should now be filled in and we have a session, localize it */
     if (!pna_localize(&key, &direction)) {
         /* couldn't localize the IP (neither source nor dest in prefix) */
+        pna_perflog(skb, PNA_UNMONITORED);
         return pna_done(skb);
     }
+
+    pna_perflog(skb, PNA_MONITORED);
 
     /* insert into session table */
     if (pna_session_mon == true) {
@@ -314,16 +312,20 @@ int pna_hook(struct sk_buff *skb, struct net_device *dev,
 /**
  * Performance Monitoring
  */
-static void pna_perflog(struct sk_buff *skb, int dir)
+static void pna_perflog(struct sk_buff *skb, int monitored)
 {
     __u64 t_interval;
-    __u64 fps_in, Mbps_in, avg_in;
-    __u64 fps_out, Mbps_out, avg_out;
-    pna_link_stats stats;
+    __u64 fps_mon, bps_mon, avg_mon;
+    __u64 fps_unmon, bps_unmon, avg_unmon;
+    struct rtnl_link_stats64 stats;
     int i;
     struct net_device *dev;
     struct pna_perf *perf = &get_cpu_var(perf_data);
 
+    /* don't want monitoring? */
+    if (!pna_perfmon) {
+        return;
+    }
 
     /* time_after_eq64(a,b) returns true if time a >= time b. */
     if ( time_after_eq64(get_jiffies_64(), perf->t_jiffies) ) {
@@ -335,75 +337,62 @@ static void pna_perflog(struct sk_buff *skb, int dir)
         perf->prevtime = perf->currtime;
 
         /* calculate the numbers */
-        fps_in = perf->p_interval[PNA_DIR_INBOUND] / t_interval;
-        /* 125000 Mb = (1000 MB/KB * 1000 KB/B) / 8 bits/B */
-        Mbps_in = perf->B_interval[PNA_DIR_INBOUND] / 125000 / t_interval;
-        avg_in = 0;
-        if (perf->p_interval[PNA_DIR_INBOUND] != 0) {
-            avg_in = perf->B_interval[PNA_DIR_INBOUND];
-            avg_in /= perf->p_interval[PNA_DIR_INBOUND];
+        fps_mon = perf->p_interval[PNA_MONITORED] / t_interval;
+        bps_mon = perf->B_interval[PNA_MONITORED] * 8 / t_interval;
+        avg_mon = 0;
+        if (perf->p_interval[PNA_MONITORED] != 0) {
+            avg_mon = perf->B_interval[PNA_MONITORED];
+            avg_mon /= perf->p_interval[PNA_MONITORED];
             /* take away non-Ethernet packet measured */
-            avg_in -= (ETH_INTERFRAME_GAP + ETH_PREAMBLE);
+            avg_mon -= (ETH_INTERFRAME_GAP + ETH_PREAMBLE);
         }
 
-        fps_out = perf->p_interval[PNA_DIR_OUTBOUND] / t_interval;
-        /* 125000 Mb = (1000 MB/KB * 1000 KB/B) / 8 bits/B */
-        Mbps_out = perf->B_interval[PNA_DIR_OUTBOUND] / 125000 / t_interval;
-        avg_out = 0;
-        if (perf->p_interval[PNA_DIR_OUTBOUND] != 0) {
-            avg_out = perf->B_interval[PNA_DIR_OUTBOUND];
-            avg_out /= perf->p_interval[PNA_DIR_OUTBOUND];
+        fps_unmon = perf->p_interval[PNA_UNMONITORED] / t_interval;
+        bps_unmon = perf->B_interval[PNA_UNMONITORED] * 8 / t_interval;
+        avg_unmon = 0;
+        if (perf->p_interval[PNA_UNMONITORED] != 0) {
+            avg_unmon = perf->B_interval[PNA_UNMONITORED];
+            avg_unmon /= perf->p_interval[PNA_UNMONITORED];
             /* take away non-Ethernet packet measured */
-            avg_out -= (ETH_INTERFRAME_GAP + ETH_PREAMBLE);
+            avg_unmon -= (ETH_INTERFRAME_GAP + ETH_PREAMBLE);
         }
 
         /* report the numbers */
-        if (fps_in + fps_out > 1000) {
-            pna_info("pna session_smpid:%d,in_fps:%llu,in_Mbps:%llu,in_avg:%llu,"
-                    "out_fps:%llu,out_Mbps:%llu,out_avg:%llu\n", smp_processor_id(),
-                    fps_in, Mbps_in, avg_in, fps_out, Mbps_out, avg_out);
+        if (fps_mon + fps_unmon > 1) {
+            pna_info("pna smpid:%d,mon:{fps:%llu,bps:%llu,avg:%llu},"
+                     "unmon:{fps:%llu,bps:%llu,avg:%llu}\n",
+                     smp_processor_id(), fps_mon, bps_mon, avg_mon,
+                     fps_unmon, bps_unmon, avg_unmon);
 
             for (i = 0; i < PNA_MAXIF; i++) {
                 dev = pna_packet_type[i].dev;
                 if (dev == NULL) {
                     break;
                 }
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,32)
-                /* numbers from the NIC */
-                stats = dev_get_stats(dev);
-                pna_info("pna %s_packets:%lu,%s_fifo_overruns:%lu,%s_missed:%lu\n",
-                        dev->name, stats->rx_packets - perf->dev_last_rx[i],
-                        dev->name, stats->rx_fifo_errors - perf->dev_last_fifo[i],
-                        dev->name, stats->rx_missed_errors - perf->dev_last_drop[i]);
-                perf->dev_last_rx[i] = stats->rx_packets;
-                perf->dev_last_drop[i] = stats->rx_missed_errors;
-                perf->dev_last_fifo[i] = stats->rx_fifo_errors;
-#else
                 /* numbers from the NIC */
                 dev_get_stats(dev, &stats);
-                pna_info("pna %s_packets:%llu,%s_fifo_overruns:%llu,%s_missed:%lli\n",
+                pna_info("pna %s:{packets:%llu,overruns:%llu,missed:%lli}\n",
                         dev->name, stats.rx_packets - perf->dev_last_rx[i],
-                        dev->name, stats.rx_fifo_errors - perf->dev_last_fifo[i],
-                        dev->name, stats.rx_missed_errors - perf->dev_last_drop[i]);
+                        stats.rx_fifo_errors - perf->dev_last_fifo[i],
+                        stats.rx_missed_errors - perf->dev_last_drop[i]);
                 perf->dev_last_rx[i] = stats.rx_packets;
                 perf->dev_last_drop[i] = stats.rx_missed_errors;
                 perf->dev_last_fifo[i] = stats.rx_fifo_errors;
-#endif /* LINUX_VERSION_CODE */
             }
         }
 
         /* set updated counters */
-        perf->p_interval[PNA_DIR_INBOUND] = 0;
-        perf->B_interval[PNA_DIR_INBOUND] = 0;
-        perf->p_interval[PNA_DIR_OUTBOUND] = 0;
-        perf->B_interval[PNA_DIR_OUTBOUND] = 0;
+        perf->p_interval[PNA_MONITORED] = 0;
+        perf->B_interval[PNA_MONITORED] = 0;
+        perf->p_interval[PNA_UNMONITORED] = 0;
+        perf->B_interval[PNA_UNMONITORED] = 0;
         perf->t_jiffies = msecs_to_jiffies(PERF_INTERVAL*MSEC_PER_SEC);
         perf->t_jiffies += get_jiffies_64();
     }
 
     /* increment packets seen in this interval */
-    perf->p_interval[dir]++;
-    perf->B_interval[dir] += skb->len + ETH_OVERHEAD;
+    perf->p_interval[monitored]++;
+    perf->B_interval[monitored] += skb->len + ETH_OVERHEAD;
 }
 
 /*
