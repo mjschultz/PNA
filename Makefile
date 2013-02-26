@@ -27,16 +27,16 @@ rtmons:
 	$(MAKE) -C monitors/ BASE=$(PWD)
 
 start: $(MODULE) $(USER)
-	sudo ./service/pna start "$(PARMS)"
+	./service/pna start "$(PARMS)"
 
 stop:
-	sudo ./service/pna stop
+	./service/pna stop
 
 dumper:
-	sudo ./service/pna load pna_dumper
+	./service/pna load pna_dumper
 
 status:
-	sudo ./service/pna status
+	./service/pna status
 
 clean:
 	$(MAKE) -C module clean

@@ -17,4 +17,5 @@ user/user_message
 user/load_nets
 user/session
 logs/*
+run/*
 *.pyc

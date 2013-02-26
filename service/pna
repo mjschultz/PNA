@@ -30,10 +30,14 @@ USER_MESSAGE="$PNA_BASE/user/user_message"
 LOAD_NETS="$PNA_BASE/user/load_nets"
 
 # System programs
-IFCONFIG="/sbin/ifconfig"
-INSMOD="/sbin/insmod"
-RMMOD="/sbin/rmmod -w"
+IFCONFIG="sudo /sbin/ifconfig"
+SVC="sudo service"
+TEE="sudo tee"
+INSMOD="sudo /sbin/insmod"
+RMMOD="sudo /sbin/rmmod -w"
 LSMOD="/sbin/lsmod"
+
+PNA_RUN="$PNA_BASE/run"
 
 ##
 # Helper routine to set affinities on interface(s)
@@ -52,7 +56,7 @@ affinitize () {
         affinity=$(printf "%x" $affinity)
         name=$(basename /proc/irq/$irq/${iface}*)
         echo -e "\t$name ($irq) affinity $affinity"
-        echo $affinity > /proc/irq/$irq/smp_affinity
+        echo $affinity | $TEE /proc/irq/$irq/smp_affinity > /dev/null
     done
 }
 
@@ -61,8 +65,8 @@ affinitize () {
 ##
 conflicts () {
     action=$1
-    service irqbalance status > /dev/null 2>&1
-    [ $? -eq 0 -o $? -eq 3 ] && service irqbalance $action
+    $SVC irqbalance status > /dev/null 2>&1
+    [ $? -eq 0 -o $? -eq 3 ] && $SVC irqbalance $action
 }
 
 ##
@@ -119,9 +123,11 @@ start () {
     # Disable conflicting services
     conflicts "stop"
 
+    mkdir -p "$PNA_RUN"
+
     # Load the kernel module
     $INSMOD $PNA_MODULE pna_iface="$PNA_IFACE" $PNA_OPTIONS $PARAMS
-    [ $? -eq 0 ] && touch /var/run/$SERVICE.kmod || error 6
+    [ $? -eq 0 ] && touch "$PNA_RUN/$SERVICE.kmod" || error 6
 
     # Load up the networks to monitor
     $LOAD_NETS $PNA_NETS
@@ -131,7 +137,7 @@ start () {
     ARGS="-v -d $PNA_LOGDIR"
     nohup ${USER_MESSAGE} $ARGS > user_message.log 2>&1 &
     PID=$!
-    [ $? -eq 0 ] && echo $PID >> /var/run/$SERVICE.pid
+    [ $? -eq 0 ] && echo $PID >> "$PNA_RUN/$SERVICE.pid"
 
     # Set processor affinity if desired
     if [ $PNA_MONPROCS ] ; then
@@ -158,8 +164,8 @@ stop () {
     grep "\(${PNA_IFACE/,/\|}\)" /proc/interrupts >> irq_count.stop
 
     # Take the user-space process
-    [ -f /var/run/$SERVICE.pid ] && kill $(cat /var/run/$SERVICE.pid)
-    rm -f /var/run/$SERVICE.pid
+    [ -f "$PNA_RUN/$SERVICE.pid" ] && kill $(cat $PNA_RUN/$SERVICE.pid)
+    rm -f "$PNA_RUN/$SERVICE.pid"
 
     # Determine if any rtmons are loaded (and unload them)
     RTMONS=$($LSMOD | grep "\<$SERVICE\>" | awk '{print $4}')
@@ -168,9 +174,9 @@ stop () {
     done
 
     # Unload the main PNA module
-    if [ -f /var/run/$SERVICE.kmod ] ; then
+    if [ -f "$PNA_RUN/$SERVICE.kmod" ] ; then
         $RMMOD $PNA_MODULE
-        rm -f /var/run/$SERVICE.kmod
+        rm -f "$PNA_RUN/$SERVICE.kmod"
     fi
 
     # De-affinitize the interface(s) and take them down
@@ -197,7 +203,7 @@ load () {
     name=$(basename $module .ko)
 
     # Make sure the PNA module is loaded (error if not)
-    [ -f /var/run/$SERVICE.kmod ] || error 3
+    [ -f "$PNA_RUN/$SERVICE.kmod" ] || error 3
 
     # Try to find the path for the monitor
     [ -f $module ] || module=$module.ko
@@ -206,7 +212,7 @@ load () {
 
     # Insert the monitor
     $INSMOD $module
-    [ $? -eq 0 ] && touch /var/run/$name.kmod || error 5
+    [ $? -eq 0 ] && touch "$PNA_RUN/$name.kmod" || error 5
     echo "PNA monitor $name loaded"
 }
 
@@ -216,7 +222,7 @@ load () {
 unload () {
     module=$1
     name=$(basename $module .ko)
-    [ -f /var/run/$name.kmod ] && $RMMOD $name
+    [ -f "$PNA_RUN/$name.kmod" ] && $RMMOD $name
     echo "PNA monitor $name unloaded"
 }
 
