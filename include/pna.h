@@ -21,6 +21,7 @@
 #else
 # include <stdint.h>
 # include <sys/time.h>
+# include <sys/types.h>
 #endif /* __KERNEL__ */
 
 #define MAX_STR 512

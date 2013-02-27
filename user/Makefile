@@ -13,7 +13,6 @@
 # limitations under the License.
 
 # Any user created monitors should go on this line
-user-progs := example_mon pcap_dump
 user-deps := pna.o
 
 # standard user-space programs
@@ -35,7 +34,8 @@ $(progs): $(prog-deps)
 
 $(config): $(config-deps)
 
-$(user-progs): $(user-deps)
+contrib: $(user-deps)
+	make -C ../contrib
 
 clean:
 	rm -f $(progs) $(prog-deps) $(config) $(config-deps)

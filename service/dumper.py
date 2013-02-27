@@ -88,7 +88,7 @@ filter_buf = ctypes.c_char_p(filter)
 # Make a program instance and compile
 program = bpf_program()
 program_ref = ctypes.byref(program)
-if -1 == pcap_compile(pcap_handle, program_ref, filter_buf, optimize, mask) :
+if pcap_compile(pcap_handle, program_ref, filter_buf, optimize, mask) == -1:
     print 'error: could not compile program'
     pcap_perror(pcap_handle, ctypes.c_char_p(b'pcap'))
     sys.exit(2)
