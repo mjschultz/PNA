@@ -132,7 +132,7 @@ int pna_net_init(void)
     }
 
     net_proc_node->write_proc = net_proc_write;
-    net_proc_node->mode = S_IFREG | S_IRUGO | S_IWUSR | S_IWGRP;
+    net_proc_node->mode = S_IFREG | S_IRUGO | S_IWUGO;
     net_proc_node->uid = 0;
     net_proc_node->gid = 0;
     net_proc_node->size = sizeof(unsigned int)*3;
