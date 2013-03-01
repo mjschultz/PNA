@@ -182,8 +182,9 @@ stop () {
     # De-affinitize the interface(s) and take them down
     for iface in ${PNA_IFACE/,/ } ; do
         # unset CPU affinities
+		default_affinity=$(sudo cat /proc/irq/default_smp_affinity)
         for f in /proc/irq/*/$iface*/../smp_affinity ; do
-            [ -f $f ] && cat /proc/irq/default_smp_affinity > $f
+            [ -f $f ] && echo $default_affinity | $TEE $f > /dev/null
         done
         # Take down PNA interface
         $IFCONFIG $iface down

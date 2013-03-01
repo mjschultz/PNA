@@ -45,7 +45,7 @@ int pna_monitor(struct pna_config *config)
         pkt = (struct pna_packet *)buf;
 
         /* make sure the buffer holds all the data we expect */
-        printf("got %d bytes\n", nbytes);
+        printf("got %zu bytes\n", nbytes);
         fflush(stdout);
         if (nbytes != pkt->caplen + sizeof(*pkt)) {
             /* it does not, ignore this packet */
