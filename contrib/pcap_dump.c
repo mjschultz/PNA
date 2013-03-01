@@ -85,7 +85,7 @@ void monitor_hook(struct session_key *key, int direction,
     /* fill out header info and write out packet to pcap file */
     hdr.ts = pkt->timestamp;
     hdr.len = pkt->len;
-    hdr.caplen = pkt->caplen - sizeof(*pkt);
+    hdr.caplen = pkt->caplen;
     pcap_dump((u_char *)dumper, &hdr, (u_char *)pkt->data);
     npkts += 1;
 
