@@ -72,6 +72,7 @@ struct pna_rtmon {
     void (*clean)(void);
     void (*release)(void);
     char *name;
+    struct mutex mutex;
     struct timer_list timer;
     struct list_head list;
 };

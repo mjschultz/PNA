@@ -19,6 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
+#include <linux/mutex.h>
 
 #include "pna.h"
 #include "pna_module.h"
@@ -33,14 +34,18 @@ DEFINE_TIMER(timer_copy, rtmon_clean, 0, 0);
 /* reset each rtmon for next round of processing -- once per */
 static void rtmon_clean(unsigned long data)
 {
-    struct pna_rtmon *m = (struct pna_rtmon *)data;
+    unsigned long next_tick;
+    struct pna_rtmon *monitor = (struct pna_rtmon *)data;
 
-    if (m->clean) {
-        m->clean();
+    mutex_lock(&monitor->mutex);
+    if (monitor->clean) {
+        monitor->clean();
     }
+    mutex_unlock(&monitor->mutex);
 
     /* update the timer for the next round */
-    mod_timer(&m->timer, jiffies + msecs_to_jiffies(RTMON_CLEAN_INTERVAL));
+    next_tick = jiffies + msecs_to_jiffies(RTMON_CLEAN_INTERVAL);
+    mod_timer(&monitor->timer, next_tick);
 }
 
 /* hook from main on packet to start real-time monitoring */
@@ -51,9 +56,11 @@ int rtmon_hook(struct session_key *key, int direction, struct sk_buff *skb,
     int ret = 0;
 
     list_for_each_entry(monitor, &rtmon_list.list, list) {
+        mutex_lock(&monitor->mutex);
         if (monitor->hook) {
             ret += monitor->hook(key, direction, skb, &data);
         }
+        mutex_unlock(&monitor->mutex);
     }
 
     return ret;
@@ -88,6 +95,10 @@ int rtmon_load(struct pna_rtmon *monitor)
     int ret = 0;
     int idx = 0;
 
+    /* kernel prevents same rtmon from being loaded twice so this is safe */
+    mutex_init(&monitor->mutex);
+    mutex_lock(&monitor->mutex);
+
     if (monitor->init) {
         ret = monitor->init();
     }
@@ -98,6 +109,9 @@ int rtmon_load(struct pna_rtmon *monitor)
     init_timer(&monitor->timer);
     monitor->timer.expires = jiffies + msecs_to_jiffies(RTMON_CLEAN_INTERVAL);
     add_timer(&monitor->timer);
+
+    /* safe to go, unlock */
+    mutex_unlock(&monitor->mutex);
 
     /* insert new monitor to tail of monitor list */
     list_add_tail(&monitor->list, &rtmon_list.list);
@@ -125,9 +139,12 @@ void rtmon_unload(struct pna_rtmon *monitor)
     del_timer(&monitor->timer);
 
     /* clean up the monitor */
+    /* there is a potential that .hook() or .cleanup() is executing */
+    mutex_lock(&monitor->mutex);
     if (monitor->release) {
         monitor->release();
     }
+    mutex_unlock(&monitor->mutex);
 
     /* show currently active monitors */
     list_for_each_entry(monitor, &rtmon_list.list, list) {
