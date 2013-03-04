@@ -37,6 +37,9 @@
 #include <linux/proc_fs.h>
 #include <linux/filter.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/sctp.h>
+#include <linux/icmp.h>
 
 #include "pna.h"
 #include "pna_module.h"
@@ -157,6 +160,7 @@ static int dumper_hook(struct session_key *key, int direction,
     // XXX: safe???
     // Ugh, who knows about the skb->len
     skb->data = skb_mac_header(skb);
+    skb->len += skb->mac_len;
 
     /* loop over all dumpers and find packet matches */
     list_for_each_entry(d, &dumper_list.list, list) {
@@ -190,6 +194,12 @@ static int dumper_hook(struct session_key *key, int direction,
                     /* set pointer for UDP */
                     pkt->hdr.payload += sizeof(struct udphdr *);
                     break;
+                case IPPROTO_SCTP:
+                    /* set pointer for UDP */
+                    pkt->hdr.payload += sizeof(struct sctphdr *);
+                    break;
+                case IPPROTO_ICMP:
+                    pkt->hdr.payload += sizeof(struct icmphdr *);
                 default:
                     /* reset pointer otherwise */
                     pkt->hdr.payload = 0;
