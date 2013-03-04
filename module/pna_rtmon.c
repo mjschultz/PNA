@@ -19,7 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
-#include <linux/mutex.h>
+#include <linux/spinlock.h>
 
 #include "pna.h"
 #include "pna_module.h"
@@ -32,16 +32,17 @@ struct pna_rtmon rtmon_list;
 DEFINE_TIMER(timer_copy, rtmon_clean, 0, 0);
 
 /* reset each rtmon for next round of processing -- once per */
+/* timer ticker, occurs in interrupt context */
 static void rtmon_clean(unsigned long data)
 {
     unsigned long next_tick;
     struct pna_rtmon *monitor = (struct pna_rtmon *)data;
 
-    mutex_lock(&monitor->mutex);
+    read_lock(&monitor->lock);
     if (monitor->clean) {
         monitor->clean();
     }
-    mutex_unlock(&monitor->mutex);
+    read_unlock(&monitor->lock);
 
     /* update the timer for the next round */
     next_tick = jiffies + msecs_to_jiffies(RTMON_CLEAN_INTERVAL);
@@ -49,6 +50,7 @@ static void rtmon_clean(unsigned long data)
 }
 
 /* hook from main on packet to start real-time monitoring */
+/* runs in soft irq context */
 int rtmon_hook(struct session_key *key, int direction, struct sk_buff *skb,
                unsigned long data)
 {
@@ -56,11 +58,11 @@ int rtmon_hook(struct session_key *key, int direction, struct sk_buff *skb,
     int ret = 0;
 
     list_for_each_entry(monitor, &rtmon_list.list, list) {
-        mutex_lock(&monitor->mutex);
+        read_lock(&monitor->lock);
         if (monitor->hook) {
             ret += monitor->hook(key, direction, skb, &data);
         }
-        mutex_unlock(&monitor->mutex);
+        read_unlock(&monitor->lock);
     }
 
     return ret;
@@ -94,10 +96,11 @@ int rtmon_load(struct pna_rtmon *monitor)
 {
     int ret = 0;
     int idx = 0;
+    unsigned long flags;
 
     /* kernel prevents same rtmon from being loaded twice so this is safe */
-    mutex_init(&monitor->mutex);
-    mutex_lock(&monitor->mutex);
+    rwlock_init(&monitor->lock);
+    write_lock_irqsave(&monitor->lock, flags);
 
     if (monitor->init) {
         ret = monitor->init();
@@ -111,7 +114,7 @@ int rtmon_load(struct pna_rtmon *monitor)
     add_timer(&monitor->timer);
 
     /* safe to go, unlock */
-    mutex_unlock(&monitor->mutex);
+    write_unlock_irqrestore(&monitor->lock, flags);
 
     /* insert new monitor to tail of monitor list */
     list_add_tail(&monitor->list, &rtmon_list.list);
@@ -131,6 +134,7 @@ EXPORT_SYMBOL(rtmon_load);
 void rtmon_unload(struct pna_rtmon *monitor)
 {
     int idx = 0;
+    unsigned long flags;
 
     /* remove the monitor from the table */
     list_del(&monitor->list);
@@ -140,11 +144,11 @@ void rtmon_unload(struct pna_rtmon *monitor)
 
     /* clean up the monitor */
     /* there is a potential that .hook() or .cleanup() is executing */
-    mutex_lock(&monitor->mutex);
+    write_lock_irqsave(&monitor->lock, flags);
     if (monitor->release) {
         monitor->release();
     }
-    mutex_unlock(&monitor->mutex);
+    write_unlock_irqrestore(&monitor->lock, flags);
 
     /* show currently active monitors */
     list_for_each_entry(monitor, &rtmon_list.list, list) {

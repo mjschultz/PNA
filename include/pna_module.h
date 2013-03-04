@@ -25,6 +25,7 @@
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/spinlock.h>
 
 /* some redefs for our namespace */
 #define pna_warn pr_warning
@@ -72,7 +73,7 @@ struct pna_rtmon {
     void (*clean)(void);
     void (*release)(void);
     char *name;
-    struct mutex mutex;
+    rwlock_t lock;
     struct timer_list timer;
     struct list_head list;
 };
