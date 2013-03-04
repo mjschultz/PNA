@@ -15,16 +15,15 @@
 MODULE := module/pna.ko
 USER := user/user_message
 
-all: $(MODULE) $(USER) rtmons
+all: $(MODULE) $(USER)
+	$(MAKE) -C monitors/ BASE=$(PWD)
+	$(MAKE) -C contrib/ BASE=$(PWD)
 
 $(MODULE):
 	$(MAKE) -C module/
 
 $(USER):
 	$(MAKE) -C user/
-
-rtmons:
-	$(MAKE) -C monitors/ BASE=$(PWD)
 
 start: $(MODULE) $(USER)
 	./service/pna start "$(PARMS)"
@@ -39,9 +38,10 @@ status:
 	./service/pna status
 
 clean:
-	$(MAKE) -C module clean
-	$(MAKE) -C user clean
-	$(MAKE) -C monitors clean
+	$(MAKE) -C module/ clean
+	$(MAKE) -C user/ clean
+	$(MAKE) -C monitors/ clean
+	$(MAKE) -C contrib/ clean
 
 realclean: clean
 	rm -f irq_count.start irq_count.stop
