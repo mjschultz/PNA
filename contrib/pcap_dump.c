@@ -5,7 +5,7 @@
 
 #include "pna.h"
 
-#define PKTS_PER_TRACE 100
+#define PKTS_PER_TRACE 10000
 #define OUT_FMT "%s/%%Y%%m%%d%%H%%M%%S-%s.pcap"
 void monitor_init(void);
 void monitor_release(void);
