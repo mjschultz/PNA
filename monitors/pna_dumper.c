@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/ctype.h>
 #include <linux/skbuff.h>
+#include <linux/spinlock.h>
 #include <linux/hash.h>
 #include <linux/in.h>
 #include <linux/sched.h>
@@ -79,9 +80,10 @@ struct dumper {
     ssize_t            path_len;
     struct sock_filter *filter;
     int                filter_len;
-    size_t             buffer_len;
-    loff_t             buffer_pos;
-    char               buffer[MAX_PKT_LEN];
+    spinlock_t         lock;
+    size_t             buffer_len; /* bytes in the buffer */
+    loff_t             buffer_pos; /* offset, used for multiple user calls */
+    char               buffer[MAX_PKT_LEN]; /* actual pkt hdr+data */
 };
 typedef struct dumper dumper_t;
 
@@ -117,29 +119,128 @@ static int dumper_procopen(struct inode *inode, struct file *filep)
     return -1;
 }
 
-ssize_t dumper_procread(struct file *filep,
-                        char __user *buf, size_t len, loff_t *ppos)
+ssize_t dumper_procread(struct file *filep, char __user *ubuf,
+                        size_t ulen, loff_t *ppos)
 {
+    size_t dump_len;
+    unsigned long dump_pos;
     dumper_t *d = (dumper_t *)filep->private_data;
 
-    /* wait until something is ready */
-    if (!d->buffer_len) {
-        wait_event_interruptible(d->queue, (0 != d->buffer_len) );
+    /* check for space to write */
+    wait_event_interruptible(d->queue, (0 != d->buffer_len) );
+    spin_lock(&d->lock);
+    dump_len = d->buffer_len;
+    dump_pos = d->buffer_pos;
+    spin_unlock(&d->lock);
+
+    if (unlikely(dump_len == 0)) {
+        /* should never happen, but we're a bit loose with locks */
+        return 0;
     }
 
     /* only copy our data if user buf is too long */
-    if (len >= d->buffer_len) {
-        len = d->buffer_len;
+    if (ulen >= dump_len) {
+        ulen = dump_len;
     }
 
     /* do the copy */
-    memcpy(buf, &d->buffer[d->buffer_pos], len);
-    d->buffer_len -= len;
-    d->buffer_pos += len;
+    memcpy(ubuf, &d->buffer[dump_pos], ulen);
+    dump_len -= ulen;
+    dump_pos += ulen;
 
-    if (d->buffer_len == 0) {
-        d->buffer_pos = 0;
+    if (dump_len == 0) {
+        dump_pos = 0;
     }
+
+    /* update buffer with new values */
+    spin_lock(&d->lock);
+    d->buffer_len = dump_len;
+    d->buffer_pos = dump_pos;
+    spin_unlock(&d->lock);
+
+    return ulen;
+}
+
+/**
+ * Write the packet data to the dumper's buffer space
+ * returns amount written (0 if no space available)
+ */
+int dumper_write(dumper_t *d, struct session_key *key, int direction,
+                 struct sk_buff *skb)
+{
+    struct pna_packet *pkt;
+    struct tcphdr *tcphdr;
+    unsigned char *base_addr;
+    size_t len;
+
+    /* check for space to write */
+    spin_lock(&d->lock);
+    if (d->buffer_len != 0) {
+        /* no space, return */
+        spin_unlock(&d->lock);
+        return 0;
+    }
+    spin_unlock(&d->lock);
+
+    /* we want pkt hdr + size of packet at most */
+    len = sizeof(*pkt) + skb->len;
+    /* if len is more than we can buffer, truncate */
+    if (len > MAX_PKT_LEN) {
+        len = MAX_PKT_LEN;
+    }
+    /* copy packet into local buffer */
+    pkt = (struct pna_packet *)&d->buffer[0];
+    memcpy(&pkt->key, key, sizeof(pkt->key));
+
+    base_addr = skb_mac_header(skb);
+    pkt->hdr.eth_hdr = skb_mac_header(skb) - base_addr;
+    pkt->hdr.ip_hdr = skb_network_header(skb) - base_addr;
+    pkt->hdr.l4_hdr = skb_transport_header(skb) - base_addr;
+
+    /* assume we'll find a payload for now */
+    pkt->hdr.payload = pkt->hdr.l4_hdr;
+    switch (key->l4_protocol) {
+    case IPPROTO_TCP:
+        /* set pointer for TCP */
+        tcphdr = (struct tcphdr *)skb_transport_header(skb);
+        pkt->hdr.payload += (tcphdr->doff * 4);
+        break;
+    case IPPROTO_UDP:
+        /* set pointer for UDP */
+        pkt->hdr.payload += sizeof(struct udphdr *);
+        break;
+    case IPPROTO_SCTP:
+        /* set pointer for UDP */
+        pkt->hdr.payload += sizeof(struct sctphdr *);
+        break;
+    case IPPROTO_ICMP:
+        pkt->hdr.payload += sizeof(struct icmphdr *);
+    default:
+        /* reset pointer otherwise */
+        pkt->hdr.payload = 0;
+    }
+    /* if the payload is not in the buffer, clear the field */
+    if (pkt->hdr.payload > skb->len) {
+        pkt->hdr.payload = 0;
+    }
+
+    pkt->direction = direction;
+    pkt->timestamp = ktime_to_timeval(skb->tstamp);
+    pkt->len = skb->len;
+    pkt->caplen = len - sizeof(*pkt);
+    /* caplen must be <= skb->len and <= buffer_len */
+    if (pkt->caplen > skb->len) {
+        pr_warn("pkt->caplen (%u) > skb->len (%u)\n", pkt->caplen, skb->len);
+    }
+    skb_copy_bits(skb, 0, pkt->data, pkt->caplen);
+
+    /* buffer now has data */
+    spin_lock(&d->lock);
+    d->buffer_len = len;
+    spin_unlock(&d->lock);
+
+    /* wake up the queue */
+    wake_up_interruptible(&d->queue);
 
     return len;
 }
@@ -151,73 +252,18 @@ static int dumper_hook(struct session_key *key, int direction,
                         struct sk_buff *skb, unsigned long *info)
 {
     dumper_t *d;
-    struct pna_packet *pkt;
-    struct tcphdr *tcphdr;
     int match;
-    unsigned char *base_addr;
 
     /* bump the skb data pointer back to the ethernet header */
-    // XXX: safe???
-    // Ugh, who knows about the skb->len
     skb->data = skb_mac_header(skb);
     skb->len += skb->mac_len;
 
     /* loop over all dumpers and find packet matches */
     list_for_each_entry(d, &dumper_list.list, list) {
+        /* check if packet matches filter and write to buffer */
         match = PNA_RUN_FILTER(skb, d->filter, d->filter_len);
-        /* look for filter match */
         if (match > 0) {
-            /* copy and pass this packet */
-            if (!d->buffer_len) {
-                d->buffer_len = skb->len + sizeof(*pkt);
-                if (d->buffer_len > MAX_PKT_LEN) {
-                    d->buffer_len = MAX_PKT_LEN;
-                }
-                /* copy packet into local buffer */
-                pkt = (struct pna_packet *)&d->buffer[0];
-                memcpy(&pkt->key, key, sizeof(pkt->key));
-
-                base_addr = skb_mac_header(skb);
-                pkt->hdr.eth_hdr = skb_mac_header(skb) - base_addr;
-                pkt->hdr.ip_hdr = skb_network_header(skb) - base_addr;
-                pkt->hdr.l4_hdr = skb_transport_header(skb) - base_addr;
-
-                /* assume we'll find a payload for now */
-                pkt->hdr.payload = pkt->hdr.l4_hdr;
-                switch (key->l4_protocol) {
-                case IPPROTO_TCP:
-                    /* set pointer for TCP */
-                    tcphdr = (struct tcphdr *)skb_transport_header(skb);
-                    pkt->hdr.payload += (tcphdr->doff * 4);
-                    break;
-                case IPPROTO_UDP:
-                    /* set pointer for UDP */
-                    pkt->hdr.payload += sizeof(struct udphdr *);
-                    break;
-                case IPPROTO_SCTP:
-                    /* set pointer for UDP */
-                    pkt->hdr.payload += sizeof(struct sctphdr *);
-                    break;
-                case IPPROTO_ICMP:
-                    pkt->hdr.payload += sizeof(struct icmphdr *);
-                default:
-                    /* reset pointer otherwise */
-                    pkt->hdr.payload = 0;
-                }
-                /* if the payload is not in the buffer, clear the field */
-                if (pkt->hdr.payload > skb->len) {
-                    pkt->hdr.payload = 0;
-                }
-
-                pkt->direction = direction;
-                pkt->timestamp = ktime_to_timeval(skb->tstamp);
-                pkt->len = skb->len;
-                pkt->caplen = d->buffer_len - sizeof(*pkt);
-                skb_copy_bits(skb, 0, pkt->data, pkt->caplen);
-
-                /* wake up the queue */
-                wake_up_interruptible(&d->queue);
-            }
+            dumper_write(d, key, direction, skb);
         }
     }
 
@@ -289,6 +335,7 @@ static ssize_t config_add(struct file *file, const char __user *buf,
     /* initilize packet queue */
     init_waitqueue_head(&d->queue);
     memset(d->buffer, 0, MAX_PKT_LEN);
+    spin_lock_init(&d->lock);
     d->buffer_len = 0;
     d->buffer_pos = 0;
 
