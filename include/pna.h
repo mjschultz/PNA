@@ -76,6 +76,7 @@ struct session_entry {
 struct pna_log_header {
     unsigned char magic[3];
     unsigned char version;
+    long int gmtoff;
     unsigned int entries;
     unsigned int start_time;
     unsigned int end_time;

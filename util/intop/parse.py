@@ -23,7 +23,7 @@ __version__ = 'parse_0.3.0-py'
 # into useful information
 class PNALogParser :
     v1hdr_fmt    = 'III'
-    v1hdr_names  = ('start-time', 'end-time','size',)
+    v1hdr_names  = ('start-time', 'end-time', 'size',)
     v1data_fmt   = 'IIHHIIIIIBBxx'
     v1data_names = ('local-ip', 'remote-ip',
                     'local-port', 'remote-port',
@@ -34,7 +34,7 @@ class PNALogParser :
 
     v2hdr_fmt    = 'cccBIII'
     v2hdr_names  = ('magic0', 'magic1', 'magic2', 'version',
-                    'start-time', 'end-time','size',)
+                    'start-time', 'end-time', 'size',)
     v2data_fmt   = 'HBxIIHHIIIIIIBBxx'
     v2data_names = ('l3-protocol', 'l4-protocol',
                     'local-ip', 'remote-ip',
@@ -44,9 +44,9 @@ class PNALogParser :
                     'end-time', 'begin-time',
                     'first-direction', 'flags',)
 
-    v3hdr_fmt    = 'cccBIII'
+    v3hdr_fmt    = 'cccBiIII'
     v3hdr_names  = ('magic0', 'magic1', 'magic2', 'version',
-                    'start-time', 'end-time','size',)
+                    'gmtoff', 'entries', 'start-time', 'end-time')
     v3data_fmt   = 'HBxIIHHHHIIIIIIBBBx'
     v3data_names = ('l3-protocol', 'l4-protocol',
                     'local-ip', 'remote-ip',

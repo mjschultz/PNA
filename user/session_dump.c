@@ -39,6 +39,8 @@ int session_dump(char *out_dir, char *proc_file)
 {
     time_t start;
     struct tm *start_gmt;
+    struct tm *start_local;
+    long int gmtoff;
     int fd;
     void *out_addr;
     uint64_t nentries;
@@ -53,6 +55,8 @@ int session_dump(char *out_dir, char *proc_file)
     /* get the current time and finish the out_file name */
     start = time(NULL);
     start_gmt = gmtime((time_t *)&start);
+    start_local = localtime((time_t *)&start);
+    gmtoff = start_local->tm_gmtoff;
     strftime(out_file, MAX_STR, out_fmt, start_gmt);
 
     /* open up the output file */
@@ -84,8 +88,9 @@ int session_dump(char *out_dir, char *proc_file)
     header.magic[2] = PNA_LOG_MAGIC2;
     header.version = PNA_LOG_VERSION;
     header.entries = nentries;
-    header.start_time = start;
-    header.end_time = time(NULL);
+    header.gmtoff = gmtoff;
+    header.start_time = start + gmtoff;
+    header.end_time = time(NULL) + gmtoff;
     write(fd, &header, sizeof(header));
 
 out_close:
