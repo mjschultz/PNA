@@ -127,11 +127,11 @@ ssize_t dumper_procread(struct file *filep, char __user *ubuf,
     dumper_t *d = (dumper_t *)filep->private_data;
 
     /* check for space to write */
-    wait_event_interruptible(d->queue, (0 != d->buffer_len) );
-    spin_lock(&d->lock);
+    wait_event_interruptible(d->queue, (0 != d->buffer_len));
+    spin_lock_bh(&d->lock);
     dump_len = d->buffer_len;
     dump_pos = d->buffer_pos;
-    spin_unlock(&d->lock);
+    spin_unlock_bh(&d->lock);
 
     if (unlikely(dump_len == 0)) {
         /* should never happen, but we're a bit loose with locks */
@@ -153,10 +153,10 @@ ssize_t dumper_procread(struct file *filep, char __user *ubuf,
     }
 
     /* update buffer with new values */
-    spin_lock(&d->lock);
+    spin_lock_bh(&d->lock);
     d->buffer_len = dump_len;
     d->buffer_pos = dump_pos;
-    spin_unlock(&d->lock);
+    spin_unlock_bh(&d->lock);
 
     return ulen;
 }
@@ -174,13 +174,13 @@ int dumper_write(dumper_t *d, struct session_key *key, int direction,
     size_t len;
 
     /* check for space to write */
-    spin_lock(&d->lock);
+    spin_lock_bh(&d->lock);
     if (d->buffer_len != 0) {
         /* no space, return */
-        spin_unlock(&d->lock);
+        spin_unlock_bh(&d->lock);
         return 0;
     }
-    spin_unlock(&d->lock);
+    spin_unlock_bh(&d->lock);
 
     /* we want pkt hdr + size of packet at most */
     len = sizeof(*pkt) + skb->len;
@@ -235,9 +235,9 @@ int dumper_write(dumper_t *d, struct session_key *key, int direction,
     skb_copy_bits(skb, 0, pkt->data, pkt->caplen);
 
     /* buffer now has data */
-    spin_lock(&d->lock);
+    spin_lock_bh(&d->lock);
     d->buffer_len = len;
-    spin_unlock(&d->lock);
+    spin_unlock_bh(&d->lock);
 
     /* wake up the queue */
     wake_up_interruptible(&d->queue);
