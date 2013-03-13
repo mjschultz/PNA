@@ -38,8 +38,8 @@ extern int verbose;
 int session_dump(char *out_dir, char *proc_file)
 {
     time_t start;
-    struct tm *start_gmt;
-    struct tm *start_local;
+    struct tm start_gmt;
+    struct tm start_local;
     long int gmtoff;
     int fd;
     void *out_addr;
@@ -54,10 +54,10 @@ int session_dump(char *out_dir, char *proc_file)
 
     /* get the current time and finish the out_file name */
     start = time(NULL);
-    start_gmt = gmtime((time_t *)&start);
-    start_local = localtime((time_t *)&start);
-    gmtoff = start_local->tm_gmtoff;
-    strftime(out_file, MAX_STR, out_fmt, start_gmt);
+    gmtime_r((time_t *)&start, &start_gmt);
+    strftime(out_file, MAX_STR, out_fmt, &start_gmt);
+    localtime_r((time_t *)&start, &start_local);
+    gmtoff = start_local.tm_gmtoff;
 
     /* open up the output file */
     fd = open(out_file, O_CREAT|O_RDWR);
