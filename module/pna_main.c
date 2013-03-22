@@ -46,6 +46,21 @@
 # error "Module does not support linux kernel < 2.6.34"
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
+typedef struct net_device_stats pna_link_stats;
+pna_link_stats *pna_get_stats(struct net_device *dev, void *storage)
+{
+	pna_link_stats *stats = (pna_link_stats *)dev_get_stats(dev);
+	return stats;
+}
+#else
+typedef struct rtnl_link_stats64 pna_link_stats;
+pna_link_stats *pna_get_stats(struct net_device *dev, pna_link_stats *storage)
+{
+	return dev_get_stats(dev, storage);
+}
+#endif
+
 extern unsigned int pna_net_lookup(unsigned int ip);
 extern int pna_net_init(void);
 extern int pna_net_deinit(void);
@@ -317,7 +332,8 @@ static void pna_perflog(struct sk_buff *skb, int monitored)
     __u64 t_interval;
     __u64 fps_mon, bps_mon, avg_mon;
     __u64 fps_unmon, bps_unmon, avg_unmon;
-    struct rtnl_link_stats64 stats;
+    pna_link_stats stats_storage;
+    pna_link_stats *stats;
     int i;
     struct net_device *dev;
     struct pna_perf *perf = &get_cpu_var(perf_data);
@@ -370,14 +386,14 @@ static void pna_perflog(struct sk_buff *skb, int monitored)
                     break;
                 }
                 /* numbers from the NIC */
-                dev_get_stats(dev, &stats);
+                stats = pna_get_stats(dev, &stats_storage);
                 pna_info("pna %s:{packets:%llu,overruns:%llu,missed:%lli}\n",
-                        dev->name, stats.rx_packets - perf->dev_last_rx[i],
-                        stats.rx_fifo_errors - perf->dev_last_fifo[i],
-                        stats.rx_missed_errors - perf->dev_last_drop[i]);
-                perf->dev_last_rx[i] = stats.rx_packets;
-                perf->dev_last_drop[i] = stats.rx_missed_errors;
-                perf->dev_last_fifo[i] = stats.rx_fifo_errors;
+                        dev->name, stats->rx_packets - perf->dev_last_rx[i],
+                        stats->rx_fifo_errors - perf->dev_last_fifo[i],
+                        stats->rx_missed_errors - perf->dev_last_drop[i]);
+                perf->dev_last_rx[i] = stats->rx_packets;
+                perf->dev_last_drop[i] = stats->rx_missed_errors;
+                perf->dev_last_fifo[i] = stats->rx_fifo_errors;
             }
         }
 

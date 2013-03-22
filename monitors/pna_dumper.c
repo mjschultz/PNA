@@ -230,7 +230,7 @@ int dumper_write(dumper_t *d, struct session_key *key, int direction,
     pkt->caplen = len - sizeof(*pkt);
     /* caplen must be <= skb->len and <= buffer_len */
     if (pkt->caplen > skb->len) {
-        pr_warn("pkt->caplen (%u) > skb->len (%u)\n", pkt->caplen, skb->len);
+        pna_warn("pkt->caplen (%lu) > skb->len (%u)\n", pkt->caplen, skb->len);
     }
     skb_copy_bits(skb, 0, pkt->data, pkt->caplen);
 
