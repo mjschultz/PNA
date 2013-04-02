@@ -315,6 +315,7 @@ int spawn_thread(struct thread_map *entry, void *(*thread)(void *))
         perror("pthread_create");
         return -1;
     }
+    pthread_detach(entry->thread_id);
     return 0;
 }
 
